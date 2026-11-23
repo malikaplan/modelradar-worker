@@ -2,8 +2,12 @@ name: ModelRadar GitHub Worker
 
 on:
   schedule:
-    - cron: '0 6,18 * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
+
+concurrency:
+  group: modelradar-worker
+  cancel-in-progress: false
 
 jobs:
   collect:
