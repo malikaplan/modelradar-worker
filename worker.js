@@ -1,4 +1,8 @@
-// ModelRadar GitHub Actions Worker (na-zz aralığı — Google Cloud ile çakışmaz)
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+
+// ModelRadar GitHub Actions Worker (MakerWorld + na-zz aralığı — Google Cloud ile çakışmaz)
 const TARGET_URL = process.env.INGEST_URL || 'http://35.225.124.42/api/ingest';
 const INGEST_KEY = process.env.INGEST_KEY || 'mr_ingest_makdesign_2026_x9k2';
 const CULTS_USER = process.env.CULTS_USER || '';
@@ -94,10 +98,84 @@ async function sendBatch(items) {
   console.log(`Ingest (${items.length}):`, r.status, txt);
 }
 
+async function fetchMakerWorld(browser, query) {
+  let page = null;
+  try {
+    page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
+    const url = query
+      ? `https://makerworld.com/en/search/models?keyword=${encodeURIComponent(query)}`
+      : `https://makerworld.com/en/3d-models`;
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await new Promise(r => setTimeout(r, 3500));
+    for (let s = 0; s < 4; s++) {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await new Promise(r => setTimeout(r, 1200));
+    }
+    const items = await page.evaluate((q) => {
+      const res = [];
+      document.querySelectorAll('a[href*="/models/"]').forEach((a) => {
+        if (res.length >= 40) return;
+        const href = a.getAttribute('href') || '';
+        const m = href.match(/\/models\/(\d+)/);
+        if (!m) return;
+        const img = a.querySelector('img') || a.closest('div')?.querySelector('img');
+        const thumb = img?.getAttribute('src') || img?.getAttribute('data-src') || '';
+        const title = (a.getAttribute('title') || img?.getAttribute('alt') || a.innerText || '').trim().split('\n')[0];
+        if (title && thumb && title.length > 2) {
+          const fullUrl = href.startsWith('http') ? href : `https://makerworld.com${href}`;
+          if (!res.some(x => x.model_url === fullUrl)) {
+            res.push({
+              id: `mw-${m[1]}`,
+              title: title.slice(0, 120),
+              platform: 'MakerWorld',
+              creator: 'MakerWorld',
+              thumbnail: thumb,
+              model_url: fullUrl,
+              query_tag: q,
+              price: 'Ücretsiz',
+              format: 'STL / 3MF',
+              is_featured: 0
+            });
+          }
+        }
+      });
+      return res;
+    }, query);
+    return items;
+  } catch (e) {
+    console.log('MakerWorld err:', e.message);
+    return [];
+  } finally {
+    if (page) await page.close().catch(() => {});
+  }
+}
+
 (async () => {
-  // Her 15 dk çalıştırmada zaman bazlı farklı 3 kapsam x 5 sayfa tarar
-  const slot = Math.floor(Date.now() / (15 * 60 * 1000));
+  const slot = Math.floor(Date.now() / (12 * 60 * 60 * 1000));
   let totalSent = 0;
+
+  // 1. MakerWorld (GitHub 7GB RAM ile güçlü tarama — genel akış + 5 farklı kapsam)
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+    const mwQueries = ['', ...Array.from({ length: 5 }, (_, i) => SCOPES[(slot * 5 + i) % SCOPES.length])];
+    for (const mq of mwQueries) {
+      const mwItems = await fetchMakerWorld(browser, mq);
+      console.log(`MakerWorld "${mq || 'Genel'}": ${mwItems.length}`);
+      if (mwItems.length > 0) {
+        await sendBatch(mwItems);
+        totalSent += mwItems.length;
+      }
+    }
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+
+  // 2. Printables + Cults3D (na-zz aralığı)
   for (let s = 0; s < 3; s++) {
     const scope = SCOPES[(slot * 3 + s) % SCOPES.length];
     for (let page = 1; page <= 5; page++) {

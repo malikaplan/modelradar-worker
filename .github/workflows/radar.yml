@@ -13,7 +13,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Run Collector and Send to Cloud VM
+      - name: Install dependencies
+        run: npm install
+      - name: Run Collector (MakerWorld + Printables + Cults3D) and Send to Cloud VM
         env:
           INGEST_URL: http://35.225.124.42/api/ingest
           INGEST_KEY: ${{ secrets.INGEST_KEY }}
