@@ -152,7 +152,7 @@ async function fetchMakerWorld(browser, query) {
 }
 
 (async () => {
-  const slot = Math.floor(Date.now() / (30 * 60 * 1000));
+  const slot = Math.floor(Date.now() / (15 * 60 * 1000));
   let totalSent = 0;
 
   // 1. MakerWorld (GitHub 7GB RAM ile güçlü tarama — genel akış + 5 farklı kapsam)
