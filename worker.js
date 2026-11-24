@@ -88,14 +88,22 @@ async function fetchCults(query, page = 1) {
 
 async function sendBatch(items) {
   if (!items.length) return;
-  const r = await fetch(TARGET_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-ingest-key': INGEST_KEY },
-    body: JSON.stringify({ items }),
-    signal: AbortSignal.timeout(15000)
-  });
-  const txt = await r.text();
-  console.log(`Ingest (${items.length}):`, r.status, txt);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const r = await fetch(TARGET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-ingest-key': INGEST_KEY },
+        body: JSON.stringify({ items }),
+        signal: AbortSignal.timeout(30000)
+      });
+      const txt = await r.text();
+      console.log(`Ingest (${items.length}):`, r.status, txt);
+      return;
+    } catch (e) {
+      console.log(`Ingest attempt ${attempt} failed:`, e.message);
+      if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+    }
+  }
 }
 
 async function fetchMakerWorld(browser, query) {
