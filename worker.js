@@ -170,7 +170,7 @@ async function fetchMakerWorld(browser, query) {
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
-    const mwQueries = ['', ...Array.from({ length: 5 }, (_, i) => SCOPES[(slot * 5 + i) % SCOPES.length])];
+    const mwQueries = ['', ...Array.from({ length: 12 }, (_, i) => SCOPES[(slot * 12 + i) % SCOPES.length])];
     for (const mq of mwQueries) {
       const mwItems = await fetchMakerWorld(browser, mq);
       console.log(`MakerWorld "${mq || 'Genel'}": ${mwItems.length}`);
